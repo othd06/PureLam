@@ -14,7 +14,7 @@ This project aims to be:
 
 The guiding philosophy is:
 
-> Everything outside the pure abstract lambda calculus that can be expressed as syntax or macro expansion should be. The evaluator should only need to understand the lambda calculus itself.
+#### Everything outside the pure abstract lambda calculus that can be expressed as syntax or macro expansion should be. The evaluator should only need to understand the lambda calculus itself.
 
 ## Features
 
