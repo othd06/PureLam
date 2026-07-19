@@ -1,0 +1,19 @@
+
+
+<program>     ::= '\n'* (<statement> '\n'+)* <statement>? ;
+
+<statement>   ::= <definition> | <term> ;
+
+<definition>  ::= "define" <symbol> <term> ;
+
+<term>        ::= <abstraction> | <application> ;
+
+<abstraction> ::= "\" <symbol> "." <term> ;
+
+<application> ::= <atom> <atom>* ;
+                # <application> <atom> | <atom>
+
+<atom>        ::= <symbol> | "(" <term> ")" | <abstraction> ;
+
+<symbol>      ::= <letter> (<letter> | <digit> | "-" )* ;
+

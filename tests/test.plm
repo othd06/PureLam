@@ -1,0 +1,35 @@
+define true \ x . \ y . x
+define false \ x . \ y . y
+define if-then \ b . \ x . \ y . b x y
+define not \ b . if-then b false true
+define and \ a . \ b . if-then a b false
+define or \ a . \ b . if-then a true b
+define zero false
+define succ \ n . \ s . \ z . s (n s z)
+define make-pair \ x . \ y . \ b . b y x
+define fst \ pair . false pair
+define snd \ pair . true pair
+define id \ x . x
+define add \ n . \ m . n succ m
+
+zero
+
+if-then true (succ zero) zero
+
+succ (succ zero)
+
+succ (succ (succ (zero)))
+
+add (succ (succ (succ (zero)))) (succ (succ (zero)))
+
+not false
+
+and (not true) (false)
+
+or (false) (not false)
+
+(\x . \y . x) y
+
+(\x . \y . x y) z
+
+
