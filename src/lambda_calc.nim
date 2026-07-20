@@ -418,7 +418,15 @@ const
         "io-church-to-list",
         "io-list-to-church",
         ]
+var
+    filesRead: seq[string]
+    inputs: seq[string]
 
+proc getInput(num: int, msg: string): string =
+    while num >= inputs.len:
+        write(stdout, msg)
+        inputs.add(readLine(stdin))
+    return inputs[num]
 
 proc tokenise (input: string): seq[Token] =
     proc expand_includes(input: seq[Token]): seq[Token] =
@@ -427,6 +435,7 @@ proc tokenise (input: string): seq[Token] =
     var
         output: seq[Token] = @[]
         idx: int = 0
+        input_num: int = 0
     while idx < input.len:
         if input[idx] == '(':
             idx += 1
@@ -459,6 +468,33 @@ proc tokenise (input: string): seq[Token] =
                 idx += 1
             if acc == "define":
                 output.add(Token(kind: define))
+            elif acc == "io-include":
+                while input[idx] in [' ', '\t']:
+                    idx += 1
+                assert(input[idx] == '\"', "include must be followed by a filepath string")
+                acc = ""
+                idx += 1
+                while input[idx] != '"':
+                    acc.add(input[idx])
+                    idx += 1
+                idx += 1
+                assert(not (acc in filesRead), "circular include")
+                filesRead.add(acc)
+                for i in tokenise(readFile(acc)):
+                    output.add(i)
+            elif acc == "io-input":
+                while input[idx] in [' ', '\t']:
+                    idx += 1
+                assert(input[idx] == '\"', "input must be followed by a message string")
+                acc = ""
+                idx += 1
+                while input[idx] != '"':
+                    acc.add(input[idx])
+                    idx += 1
+                idx += 1
+                for i in tokenise(getInput(input_num, acc)):
+                    output.add(i)
+                input_num += 1
             else:
                 output.add(Token(kind: symbol, symbol: acc))
         elif input[idx] in digits:
@@ -487,7 +523,7 @@ proc tokenise (input: string): seq[Token] =
             output.add(Token(kind: newline))
         elif input[idx] == ';':
             var strength = 0
-            while input[idx] == ';' and idx < input.len:
+            while idx < input.len and input[idx] == ';':
                 idx += 1
                 strength += 1
             while idx < input.len:
@@ -1223,7 +1259,7 @@ proc repl() =
     while true:
         let newLine = readLine(stdin)
         if newLine == "quit": break
-        if newLine == "reset": program = ""; continue
+        if newLine == "reset": program = ""; inputs = @[]; continue
         program.add("\n" & newLine)
         tokens = program.tokenise()
         AST = tokens.parseProgram()
@@ -1246,6 +1282,7 @@ proc main() =
         program = readFile(filepath)
         tokens = program.tokenise()
         AST = tokens.parseProgram()
+    filesRead.add(filepath)
     echo("")
     for i in AST:
         echo(pretty(reduce(i)))

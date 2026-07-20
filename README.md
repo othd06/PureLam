@@ -33,13 +33,14 @@ Current implementation:
 * Interactive REPL
 * Encoded/native conversion primitives for booleans, naturals, pairs, and church lists
 * Literal syntax for common encoded values
+* Simple textual `include` system
+* Macro-based inputs
 
 Planned:
 
 * Standard library
 * Church/native conversion primitives for characters, strings, and scott lists
-* Simple textual `include` system
-* Macro-based inputs
+* ` notation for automatic conversion of native values to encodings
 
 ## Usage
 
