@@ -6,11 +6,19 @@ define and \ a . \ b . if-then a b false
 define or \ a . \ b . if-then a true b
 define zero false
 define succ \ n . \ s . \ z . s (n s z)
-define make-pair \ x . \ y . \ b . b y x
-define fst \ pair . false pair
-define snd \ pair . true pair
+define make-pair \a.\b.\f. f a b
+define fst \p. p true
+define snd \p. p false
 define id \ x . x
 define add \ n . \ m . n succ m
+define pred \ n . fst (n (\ pair . make-pair (snd pair) (succ (snd pair))) (make-pair zero zero))
+define sub \ n . \ m . m pred n
+define mul \ n . \ m . n (add m) m
+
+define nil-church false ;\ f . \ emtpy . empty;
+define cons-church \ head . \ tail . \ f . \ empty . f head (tail f empty)
+define foldr-church \ f . \ init . \ list . list f init
+define foldl-church \ f . \ init . \ list . foldr (\ x . \ g . \ acc . g (f acc x)) (\x . x) list init
 
 zero
 
@@ -20,7 +28,17 @@ succ (succ zero)
 
 succ (succ (succ (zero)))
 
-add (succ (succ (succ (zero)))) (succ (succ (zero)))
+io-church-to-int (add (succ (succ (succ (zero)))) (succ (succ (zero))))
+
+io-church-to-int zero
+
+io-church-to-int (succ zero)
+
+io-church-to-int (succ (succ zero))
+
+pred (add (succ (succ (succ (zero)))) (succ (succ (zero))))
+
+io-church-to-pair (make-pair (io-church-to-int zero) (io-church-to-int (succ zero)))
 
 not false
 
@@ -31,5 +49,18 @@ or (false) (not false)
 (\x . \y . x) y
 
 (\x . \y . x y) z
+
+io-church-to-bool false
+
+io-church-to-bool true
+
+io-church-to-list (cons-church zero nil-church)
+
+"hello world"
+'c'
+<zero, false>
+#t
+[0, false, #f]
+{<5, true>, #t, 7, foo}
 
 

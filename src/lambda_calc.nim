@@ -1,9 +1,24 @@
 
 import std/cmdline
+#import sequtils
+
+proc map[T, S](s: openArray[T], op: proc (x: T): S {.closure.}): seq[S] {.inline, effectsOf: op.} =
+    newSeq(result, s.len)
+    for i in 0 ..< s.len:
+        result[i] = op(s[i])
+
+func foldr[T, S](s: seq[T], op: proc (x: T, y: S): S {.closure.}, z: S, idx = 0): S {.inline, effectsOf: op.} =
+    if idx>s.len: return z
+    result = s[idx]
+    for i in 0 ..< s.len:
+        result = op(result, foldr(s, op, z, idx+1))
+
 
 type
     TokenKind = enum
-        paren, symbol, define, lambda, dot, newline, eof
+        paren, symbol, define, lambda, dot, newline, pair_paren,
+        church_paren, scott_paren, character, str, boolean,
+        number, delimiter, eof
     Token = object
         case kind: TokenKind
             of paren:
@@ -18,10 +33,27 @@ type
                 discard
             of newline:
                 discard
+            of pair_paren:
+                pair_open: bool
+            of church_paren:
+                church_open: bool
+            of scott_paren:
+                scott_open: bool
+            of character:
+                character: char
+            of str:
+                str: string
+            of boolean:
+                boolean: bool
+            of number:
+                number: int
+            of delimiter:
+                discard
             of eof:
                 discard
     SymbolKind = enum
-        pure, iofunc
+        pure, iofunc, io_int, io_pair, io_bool, io_church_list,
+        io_scott_list, io_char, io_string
     Symbol = object
         instance: int = 0
         case kind: SymbolKind
@@ -29,6 +61,20 @@ type
                 symbol: string
             of iofunc:
                 iofunc: int
+            of io_int:
+                io_int: int64
+            of io_pair:
+                io_pair: (Term, Term)
+            of io_bool:
+                io_bool: bool
+            of io_church_list:
+                io_church_list: seq[Term]
+            of io_scott_list:
+                io_scott_list: seq[Term]
+            of io_char:
+                io_char: char
+            of io_string:
+                io_string: string
     Atom = object
         case kind: uint8
             of 0:
@@ -65,13 +111,6 @@ type
             of false:
                 definition: Definition
 
-const
-    alpha = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    digits = "0123456789"
-    iofuncs: array[0, proc(value: Atom): Term {.nosideeffect.}] = []
-    iofunc_names: array[0, string] = []
-
-
 proc `==`(a, b: Token): bool =
     if a.kind != b.kind:
         return false
@@ -91,6 +130,20 @@ proc `==`(a, b: Symbol): bool =
             return a.symbol == b.symbol
         of iofunc:
             return a.iofunc == b.iofunc
+        of io_int:
+            return a.io_int == b.io_int
+        of io_pair:
+            return a.io_pair == b.io_pair
+        of io_bool:
+            return a.io_bool == b.io_bool
+        of io_church_list:
+            return a.io_church_list == b.io_church_list
+        of io_scott_list:
+            return a.io_scott_list == b.io_scott_list
+        of io_char:
+            return a.io_char == b.io_char
+        of io_string:
+            return a.io_string == b.io_string
 
 func `==`(a, b: Term): bool
 func `==`(a, b: Abstraction): bool
@@ -122,7 +175,255 @@ func `==`(a, b: Term): bool =
         return a.application == b.application
     return a.abstraction == b.abstraction
 
+func reduce(term: Term): Term
+func pretty(term: Term): string
+func BV(M: Term): seq[Symbol]
+func FV(M: Term): seq[Symbol]
+func union[T](a, b: seq[T]): seq[T]
+
+func io_int_to_church(value: Atom, final_parent: Term): Term =
+    if value.kind != 0 or value.symbol.kind != io_int or value.symbol.io_int < 0:
+        return Term(is_application: true, application: Application(is_atom: true, value: value))
+    let integer = value.symbol.io_int
+    var intermediate = Application(is_atom: true, value: Atom(kind: 0, symbol: Symbol(kind: pure, symbol: "z")))
+    for i in 0..<integer:
+        intermediate = Application(is_atom: false, application: Application(is_atom: true, value: Atom(kind: 0, symbol: Symbol(kind: pure, symbol: "s"))), atom: Atom(kind: 1, term: Term(is_application: true, application: intermediate)))
+    return Term(is_application: false, abstraction: Abstraction(input: Symbol(kind: pure, symbol: "s"), output: Term(is_application: false, abstraction: Abstraction(input: Symbol(kind: pure, symbol: "z"), output: Term(is_application: true, application: intermediate)))))
+
+func io_church_to_int(value: Atom, final_parent: Term): Term =
+    let body = reduce(Term(is_application: true, application: Application(is_atom: false, application: Application(is_atom: false, application: Application(is_atom: true, value: value), atom: Atom(kind: 0, symbol: Symbol(kind: pure, symbol: "+"))), atom: Atom(kind: 0, symbol: Symbol(kind: pure, symbol: "0")))))
+    if not body.is_application:
+        return Term(is_application: true, application: Application(is_atom: true, value: value))
+    var
+        application = body.application
+        integer = 0'i64
+    while not application.is_atom and application.application.is_atom and application.application.value.kind == 0 and application.application.value.symbol.kind == pure and application.application.value.symbol.symbol == "+":
+        integer += 1
+        if 
+            (application.atom.kind != 1 or not application.atom.term.is_application) and
+            (application.atom.kind != 0 or application.atom.symbol != Symbol(kind: pure, symbol: "0")):
+                return Term(is_application: true, application: Application(is_atom: true, value: application.atom))
+        if application.atom.kind == 1:
+            application = application.atom.term.application
+        else:
+            break
+    if application == Application(is_atom: true, value: Atom(kind: 0, symbol: Symbol(kind: pure, symbol: "0"))):
+        return Term(is_application: true, application: Application(is_atom: true, value: Atom(kind: 0, symbol: Symbol(kind: io_int, io_int: integer))))
+    elif application == Application(is_atom: false, application: Application(is_atom: true, value: Atom(kind: 0, symbol: Symbol(kind: pure, symbol: "+"))), atom: Atom(kind: 0, symbol: Symbol(kind: pure, symbol: "0"))):
+        return Term(is_application: true, application: Application(is_atom: true, value: Atom(kind: 0, symbol: Symbol(kind: io_int, io_int: integer))))
+    return Term(is_application: true, application: Application(is_atom: true, value: value))
+
+func io_church_to_pair(value: Atom, final_parent: Term): Term =
+    let
+        t = Term(is_application: false, abstraction: Abstraction(input: Symbol(kind: pure, symbol: "x"), output: Term(is_application: false, abstraction: Abstraction(input: Symbol(kind: pure, symbol: "y"), output: Term(is_application: true, application: Application(is_atom: true, value: Atom(kind: 0, symbol: Symbol(kind: pure, symbol: "x"))))))))
+        f = Term(is_application: false, abstraction: Abstraction(input: Symbol(kind: pure, symbol: "x"), output: Term(is_application: false, abstraction: Abstraction(input: Symbol(kind: pure, symbol: "y"), output: Term(is_application: true, application: Application(is_atom: true, value: Atom(kind: 0, symbol: Symbol(kind: pure, symbol: "y"))))))))
+        lhs = reduce(Term(is_application: true, application: Application(is_atom: false, application: Application(is_atom: true, value: value), atom: Atom(kind: 1, term: t))))
+        rhs = reduce(Term(is_application: true, application: Application(is_atom: false, application: Application(is_atom: true, value: value), atom: Atom(kind: 1, term: f))))
+    return Term(is_application: true, application: Application(is_atom: true, value: Atom(kind: 0, symbol: Symbol(kind: io_pair, io_pair: (lhs, rhs)))))
+
+func io_pair_to_church(value: Atom, final_parent: Term): Term =
+    if value.kind != 0 or value.symbol.kind != io_pair:
+        return Term(is_application: true, application: Application(is_atom: true, value: value))
+    
+    let free_vars = FV(value.symbol.io_pair[0]).union(FV(value.symbol.io_pair[1]))
+    var symbol_b = Symbol(kind: pure, symbol: "b")
+    while free_vars.contains(symbol_b):
+        symbol_b.instance += 1
+    
+    return Term(
+        is_application: false,
+        abstraction: Abstraction(
+            input: symbol_b,
+            output: Term(
+                is_application: true,
+                application: Application(
+                    is_atom: false,
+                    application: Application(
+                        is_atom: false,
+                        application: Application(
+                            is_atom: true,
+                            value: Atom(
+                                kind: 0,
+                                symbol: symbol_b
+                            )),
+                        atom: Atom(
+                            kind: 1,
+                            term: value.symbol.io_pair[0]
+                        )
+                    ),
+                    atom: Atom(
+                        kind: 1,
+                        term: value.symbol.io_pair[1]
+                    )
+                )
+            )
+        )
+    )
+
+func io_church_to_bool(value: Atom, final_parent: Term): Term =
+    return reduce(
+        Term(
+            is_application: true,
+            application: Application(
+                is_atom: false,
+                application: Application(
+                    is_atom: false,
+                    application: Application(
+                        is_atom: true,
+                        value: value
+                    ),
+                    atom: Atom(kind: 0, symbol: Symbol(kind: io_bool, io_bool: true))
+                ),
+                atom: Atom(kind: 0, symbol: Symbol(kind: io_bool, io_bool: false))
+            )
+        )
+    )
+
+func io_bool_to_church(value: Atom, final_parent: Term): Term =
+    if value.kind != 0 or value.symbol.kind != io_bool:
+        return Term(is_application: true, application: Application(is_atom: true, value: value))
+    let bool_value = value.symbol.io_bool
+    if bool_value:
+        return Term(is_application: false, abstraction: Abstraction(input: Symbol(kind: pure, symbol: "x"), output: Term(is_application: false, abstraction: Abstraction(input: Symbol(kind: pure, symbol: "y"), output: Term(is_application: true, application: Application(is_atom: true, value: Atom(kind: 0, symbol: Symbol(kind: pure, symbol: "x"))))))))
+    else:
+        return Term(is_application: false, abstraction: Abstraction(input: Symbol(kind: pure, symbol: "x"), output: Term(is_application: false, abstraction: Abstraction(input: Symbol(kind: pure, symbol: "y"), output: Term(is_application: true, application: Application(is_atom: true, value: Atom(kind: 0, symbol: Symbol(kind: pure, symbol: "y"))))))))
+
+func io_church_to_list(value: Atom, final_parent: Term): Term =
+    if value.kind != 2:
+        return Term(is_application: true, application: Application(is_atom: true, value: value))
+    #apply value's application to the symbols cons and nil then pattern match agains: cons a (cons b (cons c ... nil))
+    let body = reduce(
+        Term(
+            is_application: true,
+            application: Application(
+                is_atom: false,
+                application: Application(
+                    is_atom: false,
+                    application: Application(
+                        is_atom: true,
+                        value: value
+                    ),
+                    atom: Atom(kind: 0, symbol: Symbol(kind: pure, symbol: "cons"))
+                ),
+                atom: Atom(kind: 0, symbol: Symbol(kind: pure, symbol: "nil"))
+            )
+        )
+    )
+    if not body.is_application:
+        return Term(is_application: true, application: Application(is_atom: true, value: value))
+    var
+        application = body.application
+        list: seq[Term] = @[]
+
+    while not application.is_atom and not application.application.is_atom and application.application.application.is_atom and application.application.application.value == Atom(kind: 0, symbol: Symbol(kind: pure, symbol: "cons")):
+        let elem: Atom = application.application.atom
+        case elem.kind:
+            of 0:
+                list.add(Term(is_application: true, application: Application(is_atom: true, value: elem)))
+            of 1:
+                list.add(elem.term)
+            of 2:
+                list.add(Term(is_application: false, abstraction: elem.abstraction))
+            else:
+                assert(false, "malformed atom")
+        if
+            (application.atom.kind != 1 or not application.atom.term.is_application) and
+            (application.atom.kind != 0 or application.atom.symbol != Symbol(kind: pure, symbol: "nil")):
+                return Term(is_application: true, application: Application(is_atom: true, value: value))
+        if application.atom.kind == 1:
+            application = application.atom.term.application
+        else:
+            application = Application(is_atom: true, value: application.atom)
+    if application == Application(is_atom: true, value: Atom(kind: 0, symbol: Symbol(kind: pure, symbol: "nil"))):
+        return Term(is_application: true, application: Application(is_atom: true, value: Atom(kind: 0, symbol: Symbol(kind: io_church_list, io_church_list: list))))
+    else:
+        return Term(is_application: true, application: Application(is_atom: true, value: value))
+
+func io_list_to_church(value: Atom, final_parent: Term): Term =
+    if value.kind != 0 or value.symbol.kind != io_church_list:
+        return Term(is_application: true, application: Application(is_atom: true, value: value))
+    var
+        symbol_nil = Symbol(kind: pure, symbol: "nil")
+        symbol_cons = Symbol(kind: pure, symbol: "cons")
+        list = value.symbol.io_church_list
+    let
+        free_vars = value.symbol.io_church_list.map(FV).foldr(union, newSeq[Symbol](0))
+    while free_vars.contains(symbol_nil):
+        symbol_nil.instance += 1
+    while free_vars.contains(symbol_cons):
+        symbol_cons.instance += 1
+    var application = Application(is_atom: true, value: Atom(kind: 0, symbol: symbol_nil))
+    while list.len > 0:
+        application = Application(
+            is_atom: false,
+            application: Application(
+                is_atom: false,
+                application: Application(
+                    is_atom: true,
+                    value: Atom(kind: 0,
+                        symbol: symbol_cons
+                    )
+                ),
+                atom: Atom(
+                    kind: 1,
+                    term: list[list.high]
+                )
+            ),
+            atom: Atom(
+                kind: 1,
+                term: Term(
+                    is_application: true,
+                    application: application
+                )
+            )
+        )
+        list.del(list.high)
+    return Term(
+        is_application: false,
+        abstraction: Abstraction(
+            input: symbol_cons,
+            output: Term(
+                is_application: false,
+                abstraction: Abstraction(
+                    input: symbol_nil,
+                    output: Term(
+                        is_application: true,
+                        application: application
+                    )
+                )
+            )
+        )
+    )
+
+const
+    alpha = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    digits = "0123456789"
+    iofuncs = [
+        io_int_to_church,
+        io_church_to_int,
+        io_church_to_pair,
+        io_pair_to_church,
+        io_church_to_bool,
+        io_bool_to_church,
+        io_church_to_list,
+        io_list_to_church,
+        ]
+    iofunc_names = [
+        "io-int-to-church",
+        "io-church-to-int",
+        "io-church-to-pair",
+        "io-pair-to-church",
+        "io-church-to-bool",
+        "io-bool-to-church",
+        "io-church-to-list",
+        "io-list-to-church",
+        ]
+
+
 proc tokenise (input: string): seq[Token] =
+    proc expand_includes(input: seq[Token]): seq[Token] =
+        var output = input
+        return output
     var
         output: seq[Token] = @[]
         idx: int = 0
@@ -133,6 +434,24 @@ proc tokenise (input: string): seq[Token] =
         elif input[idx] == ')':
             idx += 1
             output.add(Token(kind: paren, open: false))
+        elif input[idx] == '<':
+            idx += 1
+            output.add(Token(kind: pair_paren, pair_open: true))
+        elif input[idx] == '>':
+            idx += 1
+            output.add(Token(kind: pair_paren, pair_open: false))
+        elif input[idx] == '[':
+            idx += 1
+            output.add(Token(kind: church_paren, church_open: true))
+        elif input[idx] == ']':
+            idx += 1
+            output.add(Token(kind: church_paren, church_open: false))
+        elif input[idx] == '{':
+            idx += 1
+            output.add(Token(kind: scott_paren, scott_open: true))
+        elif input[idx] == '}':
+            idx += 1
+            output.add(Token(kind: scott_paren, scott_open: false))
         elif input[idx] in alpha:
             var acc = ""
             while (idx < input.len) and ((input[idx] in alpha) or (input[idx] in digits) or (input[idx] == '-')):
@@ -142,6 +461,21 @@ proc tokenise (input: string): seq[Token] =
                 output.add(Token(kind: define))
             else:
                 output.add(Token(kind: symbol, symbol: acc))
+        elif input[idx] in digits:
+            var acc = 0
+            while (idx < input.len) and (input[idx] in digits):
+                acc *= 10
+                acc += digits.find(input[idx])
+                idx += 1
+            output.add(Token(kind: number, number: acc))
+        elif input[idx] == '#':
+            idx += 1
+            if idx < input.len and input[idx] == 't':
+                output.add(Token(kind: boolean, boolean: true))
+                idx += 1
+            elif idx < input.len and input[idx] == 'f':
+                output.add(Token(kind: boolean, boolean: false))
+                idx += 1
         elif input[idx] == '\\':
             idx += 1
             output.add(Token(kind: lambda))
@@ -151,11 +485,47 @@ proc tokenise (input: string): seq[Token] =
         elif input[idx] == '\n':
             idx += 1
             output.add(Token(kind: newline))
+        elif input[idx] == ';':
+            var strength = 0
+            while input[idx] == ';' and idx < input.len:
+                idx += 1
+                strength += 1
+            while idx < input.len:
+                if input[idx] == ';':
+                    var end_strength = 0
+                    while input[idx] == ';' and end_strength < strength:
+                        idx += 1
+                        end_strength += 1
+                    if end_strength >= strength:
+                        break
+                idx += 1
+                assert(idx < input.len, "non-terminated comment")
+        elif input[idx] == '\'':
+            idx += 1
+            assert(idx < input.len)
+            let character = input[idx]
+            idx += 1
+            assert(idx < input.len)
+            assert(input[idx] == '\'')
+            idx += 1
+            output.add(Token(kind: TokenKind.character, character: character))
+        elif input[idx] == '"':
+            idx += 1
+            var acc = ""
+            while input[idx] != '"':
+                acc.add(input[idx])
+                idx += 1
+                assert(idx < input.len, "string: " & acc & ", initialised but not terminated")
+            idx += 1
+            output.add(Token(kind: str, str: acc))
+        elif input[idx] == ',':
+            idx += 1
+            output.add(Token(kind: delimiter))
         else:
             #skip whitespace and other non-recognised junk (this may later want to separate whitespace from junk and error on junk)
             idx += 1
     output.add(Token(kind: eof))
-    return output
+    return output.expand_includes()
 
 proc parseTerm(input: seq[Token], idx: var int): Term
 
@@ -165,6 +535,49 @@ proc parseAtom(input: seq[Token], idx: var int): Atom =
     if input[idx].kind == symbol:
         idx += 1
         return Atom(kind: 0, symbol: Symbol(kind: pure, symbol: input[idx-1].symbol))
+    elif input[idx].kind == number:
+        idx += 1
+        return Atom(kind: 0, symbol: Symbol(kind: io_int, io_int: input[idx-1].number))
+    elif input[idx].kind == boolean:
+        idx += 1
+        return Atom(kind: 0, symbol: Symbol(kind: io_bool, io_bool: input[idx-1].boolean))
+    elif input[idx].kind == pair_paren and input[idx].pair_open == true:
+        idx += 1
+        let term1 = parseTerm(input, idx)
+        assert(input[idx].kind == delimiter)
+        idx += 1
+        let term2 = parseTerm(input, idx)
+        assert(input[idx].kind == pair_paren and input[idx].pair_open == false)
+        idx += 1
+        return Atom(kind: 0, symbol: Symbol(kind: io_pair, io_pair: (term1, term2)))
+    elif input[idx].kind == church_paren and input[idx].church_open == true:
+        idx += 1
+        var list: seq[Term] = @[]
+        while true:
+            list.add(parseTerm(input, idx))
+            if input[idx].kind != delimiter:
+                break
+            idx += 1
+        assert(input[idx].kind == church_paren and input[idx].church_open == false)
+        idx += 1
+        return Atom(kind: 0, symbol: Symbol(kind: io_church_list, io_church_list: list))
+    elif input[idx].kind == scott_paren and input[idx].scott_open == true:
+        idx += 1
+        var list: seq[Term] = @[]
+        while true:
+            list.add(parseTerm(input, idx))
+            if input[idx].kind != delimiter:
+                break
+            idx += 1
+        assert(input[idx].kind == scott_paren and input[idx].scott_open == false)
+        idx += 1
+        return Atom(kind: 0, symbol: Symbol(kind: io_scott_list, io_scott_list: list))
+    elif input[idx].kind == character:
+        idx += 1
+        return Atom(kind: 0, symbol: Symbol(kind: io_char, io_char: input[idx-1].character))
+    elif input[idx].kind == str:
+        idx += 1
+        return Atom(kind: 0, symbol: Symbol(kind: io_string, io_string: input[idx-1].str))
     elif input[idx].kind == paren and input[idx].open == true:
         idx += 1
         let term = parseTerm(input, idx)
@@ -179,8 +592,14 @@ proc parseAtom(input: seq[Token], idx: var int): Atom =
 
 proc parseApplication(input: seq[Token], idx: var int): Application =
     var flat: seq[Atom]
-    while input[idx].kind in [symbol, paren, lambda]:
+    while input[idx].kind in [symbol, paren, lambda, pair_paren, church_paren, scott_paren, character, str, number, boolean]:
         if input[idx].kind == paren and input[idx].open == false:
+            break
+        if input[idx].kind == pair_paren and input[idx].pair_open == false:
+            break
+        if input[idx].kind == church_paren and input[idx].church_open == false:
+            break
+        if input[idx].kind == scott_paren and input[idx].scott_open == false:
             break
         flat.add(parseAtom(input, idx))
     proc unflatten(input: var seq[Atom]): Application =
@@ -203,8 +622,12 @@ proc parseAbstraction(input: seq[Token], idx: var int): Abstraction =
     return Abstraction(input: symbol, output: term)
 
 proc parseTerm(input: seq[Token], idx: var int): Term =
-    if input[idx].kind in [eof, dot, define, paren, newline]:
+    if input[idx].kind in [eof, dot, define, paren, church_paren, scott_paren, newline, delimiter]:
         if input[idx].kind == paren and input[idx].open == true:
+            discard
+        elif input[idx].kind == church_paren and input[idx].church_open == true:
+            discard
+        elif input[idx].kind == scott_paren and input[idx].scott_open == true:
             discard
         else:
             assert(false, "malformed term")
@@ -255,6 +678,8 @@ proc expand(atom: var Atom, bound_definitions: seq[(Symbol, Term)]) =
             if bound_definitions.contains(atom.symbol):
                 atom = Atom(kind: 1, term: bound_definitions[symbol])
                 expand(atom, bound_definitions.up_to(symbol))
+            elif atom.symbol.kind == pure and io_func_names.contains(atom.symbol.symbol):
+                atom = Atom(kind: 0, symbol: Symbol(kind: io_func, io_func: io_func_names.find(atom.symbol.symbol)))
         of 1:
             expand(atom.term, bound_definitions)
         of 2:
@@ -298,15 +723,13 @@ proc parseProgram(input: seq[Token]): seq[Term] =
             idx += 1
     return output
 
-proc union[T](a, b: seq[T]): seq[T] =
-    var output: seq[T] = @[]
+func union[T](a, b: seq[T]): seq[T] =
     for i in a:
-        if not output.contains(i):
-            output.add(i)
+        if not result.contains(i):
+            result.add(i)
     for i in b:
-        if not output.contains(i):
-            output.add(i)
-    return output
+        if not result.contains(i):
+            result.add(i)
 
 proc intersection[T](a, b: seq[T]): seq[T] =
     var output: seq[T]
@@ -323,14 +746,12 @@ proc subtract[T](a, b: seq[T]): seq[T] =
             output.del(output.find(i))
     return output
 
-proc FV(M: Term): seq[Symbol]
+func FV(M: Abstraction): seq[Symbol]
 
-proc FV(M: Abstraction): seq[Symbol]
-
-proc FV(M: Symbol): seq[Symbol] =
+func FV(M: Symbol): seq[Symbol] =
     @[M]
 
-proc FV(M: Atom): seq[Symbol] =
+func FV(M: Atom): seq[Symbol] =
     if M.kind == 0:
         return FV(M.symbol)
     elif M.kind == 1:
@@ -340,27 +761,25 @@ proc FV(M: Atom): seq[Symbol] =
     else:
         assert(false, "malformed Atom")
 
-proc FV(M: Application): seq[Symbol] =
+func FV(M: Application): seq[Symbol] =
     if M.is_atom:
         return FV(M.value)
     return union(FV(M.application), FV(M.atom))
 
-proc FV(M: Abstraction): seq[Symbol] =
+func FV(M: Abstraction): seq[Symbol] =
     return subtract(FV(M.output), FV(M.input))
 
-proc FV(M: Term): seq[Symbol] =
+func FV(M: Term): seq[Symbol] =
     if M.is_application:
         return FV(M.application)
     return FV(M.abstraction)
 
-proc BV(M: Term): seq[Symbol]
+func BV(M: Abstraction): seq[Symbol]
 
-proc BV(M: Abstraction): seq[Symbol]
-
-proc BV(M: Symbol): seq[Symbol] =
+func BV(M: Symbol): seq[Symbol] =
     return @[]
 
-proc BV(M: Atom): seq[Symbol] =
+func BV(M: Atom): seq[Symbol] =
     if M.kind == 0:
         return BV(M.symbol)
     elif M.kind == 1:
@@ -370,92 +789,94 @@ proc BV(M: Atom): seq[Symbol] =
     else:
         assert(false, "malformed Atom")
 
-proc BV(M: Application): seq[Symbol] =
+func BV(M: Application): seq[Symbol] =
     if M.is_atom:
         return BV(M.value)
     return union(BV(M.application), BV(M.atom))
 
-proc BV(M: Abstraction): seq[Symbol] =
+func BV(M: Abstraction): seq[Symbol] =
     return union(FV(M.input), BV(M.output))
 
-proc BV(M: Term): seq[Symbol] =
+func BV(M: Term): seq[Symbol] =
     if M.is_application:
         return BV(M.application)
     return BV(M.abstraction)
 
-proc contains_callable_iofuncs(term: Term): bool
-proc contains_callable_iofuncs(abstraction: Abstraction): bool
+func contains_callable_iofuncs(term: Term, final_parent: Term): bool
+func contains_callable_iofuncs(abstraction: Abstraction, final_parent: Term): bool
 
-proc contains_callable_iofuncs(application: Application): bool =
+func contains_callable_iofuncs(application: Application, final_parent: Term): bool =
     if application.is_atom:
         case application.value.kind:
             of 0:
                 return false
             of 1:
-                return contains_callable_iofuncs(application.value.term)
+                return contains_callable_iofuncs(application.value.term, final_parent)
             of 2:
-                return contains_callable_iofuncs(application.value.abstraction)
+                return contains_callable_iofuncs(application.value.abstraction, final_parent)
             else:
                 assert(false, "malformed atom")
     elif application.application.is_atom:
-        let lhs = application.application.value
+        let
+            lhs = application.application.value
+            rhs = application.application.atom
         case lhs.kind:
             of 0:
-                if lhs.symbol.kind == iofunc: return true
-                return contains_callable_iofuncs(Application(is_atom: true, value: application.atom))
+                if lhs.symbol.kind == iofunc and (iofuncs[lhs.symbol.iofunc](rhs, final_parent) != Term(is_application: true, application: Application(is_atom: true, value: rhs))): return true
+                return contains_callable_iofuncs(Application(is_atom: true, value: application.atom), final_parent)
             of 1:
-                return contains_callable_iofuncs(lhs.term)
+                return contains_callable_iofuncs(lhs.term, final_parent)
             of 2:
-                return contains_callable_iofuncs(lhs.abstraction)
+                return contains_callable_iofuncs(lhs.abstraction, final_parent)
             else:
                 assert(false, "malformed atom")
     else:
-        return contains_callable_iofuncs(application.application)
+        return contains_callable_iofuncs(application.application, final_parent)
 
-proc contains_callable_iofuncs(abstraction: Abstraction): bool =
-    return contains_callable_iofuncs(abstraction.output)
+func contains_callable_iofuncs(abstraction: Abstraction, final_parent: Term): bool =
+    return contains_callable_iofuncs(abstraction.output, final_parent)
 
-proc contains_callable_iofuncs(term: Term): bool =
+func contains_callable_iofuncs(term: Term, final_parent: Term): bool =
     if term.is_application:
-        return contains_callable_iofuncs(term.application)
-    return contains_callable_iofuncs(term.abstraction)
+        return contains_callable_iofuncs(term.application, final_parent)
+    return contains_callable_iofuncs(term.abstraction, final_parent)
 
-proc apply_iofuncs(term: Term): Term
-proc apply_iofuncs(abstraction: Abstraction): Abstraction
+func apply_iofuncs(term: Term, final_parent: Term): Term
+func apply_iofuncs(abstraction: Abstraction, final_parent: Term): Abstraction
 
-proc apply_iofuncs(atom: Atom): Atom =
+func apply_iofuncs(atom: Atom, final_parent: Term): Atom =
     case atom.kind:
         of 0:
             return atom
         of 1:
-            return Atom(kind: 1, term: apply_iofuncs(atom.term))
+            return Atom(kind: 1, term: apply_iofuncs(atom.term, final_parent))
         of 2:
-            return Atom(kind: 2, abstraction: apply_iofuncs(atom.abstraction))
+            return Atom(kind: 2, abstraction: apply_iofuncs(atom.abstraction, final_parent))
         else:
             assert(false, "malformed atom")
 
-proc apply_iofuncs(application: Application): Application =
+func apply_iofuncs(application: Application, final_parent: Term): Application =
     if application.is_atom:
-        return Application(is_atom: true, value: apply_iofuncs(application.value))
+        return Application(is_atom: true, value: apply_iofuncs(application.value, final_parent))
     if application.application.is_atom:
         let lhs = application.application.value
         if lhs.kind == 0 and lhs.symbol.kind == iofunc:
-            return Application(is_atom: true, value: Atom(kind: 1, term: iofuncs[lhs.symbol.iofunc](application.atom)))
-        return Application(is_atom: false, application: Application(is_atom: true, value: apply_iofuncs(lhs)), atom: apply_iofuncs(application.atom))
-    return Application(is_atom: false, application: apply_iofuncs(application.application), atom: apply_iofuncs(application.atom))
+            return Application(is_atom: true, value: Atom(kind: 1, term: iofuncs[lhs.symbol.iofunc](application.atom, final_parent)))
+        return Application(is_atom: false, application: Application(is_atom: true, value: apply_iofuncs(lhs, final_parent)), atom: apply_iofuncs(application.atom, final_parent))
+    return Application(is_atom: false, application: apply_iofuncs(application.application, final_parent), atom: apply_iofuncs(application.atom, final_parent))
 
-proc apply_iofuncs(abstraction: Abstraction): Abstraction =
-    return Abstraction(input: abstraction.input, output: apply_iofuncs(abstraction.output))
+func apply_iofuncs(abstraction: Abstraction, final_parent: Term): Abstraction =
+    return Abstraction(input: abstraction.input, output: apply_iofuncs(abstraction.output, final_parent))
 
-proc apply_iofuncs(term: Term): Term =
+func apply_iofuncs(term: Term, final_parent: Term): Term =
     if term.is_application:
-        return Term(is_application: true, application: apply_iofuncs(term.application))
-    return Term(is_application: false, abstraction: apply_iofuncs(term.abstraction))
+        return Term(is_application: true, application: apply_iofuncs(term.application, final_parent))
+    return Term(is_application: false, abstraction: apply_iofuncs(term.abstraction, final_parent))
 
-proc replace_unbound(term: Term, symbol_from, symbol_to: Atom): Term
-proc replace_unbound(abstraction: Abstraction, symbol_from, symbol_to: Atom): Abstraction
+func replace_unbound(abstraction: Abstraction, symbol_from, symbol_to: Atom): Abstraction
+func replace_unbound(term: Term, symbol_from, symbol_to: Atom): Term
 
-proc replace_unbound(atom: Atom, symbol_from, symbol_to: Atom): Atom =
+func replace_unbound(atom: Atom, symbol_from, symbol_to: Atom): Atom =
     case atom.kind:
         of 0:
             if atom == symbol_from: return symbol_to
@@ -467,26 +888,26 @@ proc replace_unbound(atom: Atom, symbol_from, symbol_to: Atom): Atom =
         else:
             assert(false, "malformed atom")
 
-proc replace_unbound(application: Application, symbol_from, symbol_to: Atom): Application =
+func replace_unbound(application: Application, symbol_from, symbol_to: Atom): Application =
     if application.is_atom:
         return Application(is_atom: true, value: application.value.replace_unbound(symbol_from, symbol_to))
     else:
         return Application(is_atom: false, application: application.application.replace_unbound(symbol_from, symbol_to), atom: application.atom.replace_unbound(symbol_from, symbol_to))
 
-proc replace_unbound(abstraction: Abstraction, symbol_from, symbol_to: Atom): Abstraction =
+func replace_unbound(abstraction: Abstraction, symbol_from, symbol_to: Atom): Abstraction =
     if abstraction.input == symbol_from.symbol:
         return abstraction
     return Abstraction(input: abstraction.input, output: abstraction.output.replace_unbound(symbol_from, symbol_to))
 
-proc replace_unbound(term: Term, symbol_from, symbol_to: Atom): Term =
+func replace_unbound(term: Term, symbol_from, symbol_to: Atom): Term =
     if term.is_application:
         return Term(is_application: true, application: replace_unbound(term.application, symbol_from, symbol_to))
     return Term(is_application: false, abstraction: replace_unbound(term.abstraction, symbol_from, symbol_to))
 
-proc replace_bound(term: Term, symbol_from, symbol_to: Atom): Term
-proc replace_bound(abstraction: Abstraction, symbol_from, symbol_to: Atom): Abstraction
+func replace_bound(term: Term, symbol_from, symbol_to: Atom): Term
+func replace_bound(abstraction: Abstraction, symbol_from, symbol_to: Atom): Abstraction
 
-proc replace_bound(atom: Atom, symbol_from, symbol_to: Atom): Atom =
+func replace_bound(atom: Atom, symbol_from, symbol_to: Atom): Atom =
     case atom.kind:
         of 0:
             return atom
@@ -497,23 +918,23 @@ proc replace_bound(atom: Atom, symbol_from, symbol_to: Atom): Atom =
         else:
             assert(false, "malformed atom")
 
-proc replace_bound(application: Application, symbol_from, symbol_to: Atom): Application =
+func replace_bound(application: Application, symbol_from, symbol_to: Atom): Application =
     if application.is_atom:
         return Application(is_atom: true, value: application.value.replace_bound(symbol_from, symbol_to))
     else:
         return Application(is_atom: false, application: application.application.replace_bound(symbol_from, symbol_to), atom: application.atom.replace_bound(symbol_from, symbol_to))
 
-proc replace_bound(abstraction: Abstraction, symbol_from, symbol_to: Atom): Abstraction =
+func replace_bound(abstraction: Abstraction, symbol_from, symbol_to: Atom): Abstraction =
     if abstraction.input == symbol_from.symbol:
         return Abstraction(input: symbol_to.symbol, output: abstraction.output.replace_unbound(symbol_from, symbol_to))
     return Abstraction(input: abstraction.input, output: abstraction.output.replace_bound(symbol_from, symbol_to))
 
-proc replace_bound(term: Term, symbol_from, symbol_to: Atom): Term =
+func replace_bound(term: Term, symbol_from, symbol_to: Atom): Term =
     if term.is_application:
         return Term(is_application: true, application: replace_bound(term.application, symbol_from, symbol_to))
     return Term(is_application: false, abstraction: replace_bound(term.abstraction, symbol_from, symbol_to))
 
-proc alpha_rename_abstraction(abstraction: Abstraction, symbol_from: Symbol, final_parent: Term): Abstraction =
+func alpha_rename_abstraction(abstraction: Abstraction, symbol_from: Symbol, final_parent: Term): Abstraction =
     if not (symbol_from in BV(abstraction.output)) and symbol_from != abstraction.input:
         return abstraction
     var symbol_to: Symbol = symbol_from
@@ -524,11 +945,11 @@ proc alpha_rename_abstraction(abstraction: Abstraction, symbol_from: Symbol, fin
     else:
         return Abstraction(input: abstraction.input, output: abstraction.output.replace_bound(Atom(kind: 0, symbol: symbol_from), Atom(kind: 0, symbol: symbol_to)))
 
-proc beta_reduce_step(term: Term, final_parent: Term): Term
+func beta_reduce_step(term: Term, final_parent: Term): Term
 
-proc beta_reduce_step(abstraction: Abstraction, final_parent: Term): Abstraction
+func beta_reduce_step(abstraction: Abstraction, final_parent: Term): Abstraction
 
-proc beta_reduce_step(application: Application, final_parent: Term): Term =
+func beta_reduce_step(application: Application, final_parent: Term): Term =
     if application.is_atom:
         let atom = application.value
         case atom.kind:
@@ -610,16 +1031,17 @@ proc beta_reduce_step(application: Application, final_parent: Term): Term =
             else:
                 assert(false, "malformed atom")
 
-proc beta_reduce_step(abstraction: Abstraction, final_parent: Term): Abstraction =
+func beta_reduce_step(abstraction: Abstraction, final_parent: Term): Abstraction =
+    assert(abstraction.input.kind == pure, "impure (io) symbols are not permitted to be bound by abstractions")
     return Abstraction(input: abstraction.input, output: beta_reduce_step(abstraction.output, final_parent))
 
-proc beta_reduce_step(term: Term, final_parent: Term): Term =
+func beta_reduce_step(term: Term, final_parent: Term): Term =
     if term.is_application:
         return beta_reduce_step(term.application, final_parent)
     else:
         return Term(is_application: false, abstraction: beta_reduce_step(term.abstraction, final_parent))
 
-proc beta_reduce(term: Term, final_parent: Term): Term =
+func beta_reduce(term: Term, final_parent: Term): Term =
     var output: Term = term
     var next_term: Term = beta_reduce_step(term, final_parent)
     while next_term != output:
@@ -627,10 +1049,10 @@ proc beta_reduce(term: Term, final_parent: Term): Term =
         next_term = beta_reduce_step(next_term, final_parent)
     return output
 
-proc eta_reduce_step(term: Term): Term
-proc eta_reduce_step(abstraction: Abstraction): Term
+func eta_reduce_step(term: Term): Term
+func eta_reduce_step(abstraction: Abstraction): Term
 
-proc eta_reduce_step(atom: Atom): Atom =
+func eta_reduce_step(atom: Atom): Atom =
     case atom.kind:
         of 0:
             return atom
@@ -644,24 +1066,24 @@ proc eta_reduce_step(atom: Atom): Atom =
         else:
             assert(false, "malformed atom")
 
-proc eta_reduce_step(application: Application): Application =
+func eta_reduce_step(application: Application): Application =
     if application.is_atom:
         return Application(is_atom: true, value: eta_reduce_step(application.value))
     return Application(is_atom: false, application: eta_reduce_step(application.application), atom: eta_reduce_step(application.atom))
 
-proc eta_reduce_step(abstraction: Abstraction): Term =
+func eta_reduce_step(abstraction: Abstraction): Term =
     if abstraction.output.is_application and not abstraction.output.application.is_atom and abstraction.output.application.atom.kind == 0 and abstraction.output.application.atom.symbol == abstraction.input:
         let candidate = abstraction.output.application.application
         if FV(candidate) == FV(abstraction):
             return Term(is_application: true, application: candidate)
     return Term(is_application: false, abstraction: Abstraction(input: abstraction.input, output: eta_reduce_step(abstraction.output)))
 
-proc eta_reduce_step(term: Term): Term =
+func eta_reduce_step(term: Term): Term =
     if term.is_application:
         return Term(is_application: true, application: eta_reduce_step(term.application))
     return eta_reduce_step(term.abstraction)
 
-proc eta_reduce(term: Term): Term =
+func eta_reduce(term: Term): Term =
     var
         output = term
         next = eta_reduce_step(output)
@@ -672,20 +1094,19 @@ proc eta_reduce(term: Term): Term =
         next = beta_reduce(next, next)
     return output
 
-proc reduce(term: Term): Term =
+func reduce(term: Term): Term =
     var output = term
     output = beta_reduce(output, output)
     output = eta_reduce(output)
-    while output.contains_callable_iofuncs():
-        output = output.apply_iofuncs()
+    while output.contains_callable_iofuncs(output):
+        output = output.apply_iofuncs(term)
         output = output.beta_reduce(output)
         output = output.eta_reduce()
     return output
 
-proc pretty(term: Term): string
-proc pretty(abstraction: Abstraction): string
+func pretty(abstraction: Abstraction): string
 
-proc pretty(symbol: Symbol): string =
+func pretty(symbol: Symbol): string =
     case symbol.kind:
         of pure:
             if symbol.instance == 0: return symbol.symbol
@@ -699,8 +1120,62 @@ proc pretty(symbol: Symbol): string =
             output.add("'")
             output.add($symbol.instance)
             return output
+        of io_int:
+            if symbol.instance == 0: return $symbol.io_int
+            var output = $symbol.io_int
+            output.add("'")
+            output.add($symbol.instance)
+            return output
+        of io_pair:
+            var output = "<"
+            output.add(pretty(symbol.io_pair[0]))
+            output.add(", ")
+            output.add(pretty(symbol.io_pair[1]))
+            output.add(">")
+            if symbol.instance == 0: return output
+            output.add("'")
+            output.add($symbol.instance)
+            return output
+        of io_bool:
+            if symbol.instance == 0: return $symbol.io_bool
+            var output = $symbol.io_bool
+            output.add("'")
+            output.add($symbol.instance)
+            return output
+        of io_church_list:
+            var output = "["
+            for i in symbol.io_church_list:
+                output.add(pretty(i))
+                output.add(", ")
+            output[output.high-1] = ']'
+            if symbol.instance == 0: return output
+            output.add("'")
+            output.add($symbol.instance)
+            return output
+        of io_scott_list:
+            var output = "{"
+            for i in symbol.io_scott_list:
+                output.add(pretty(i))
+                output.add(", ")
+            output[output.high-1] = '}'
+            if symbol.instance == 0: return output
+            output.add("'")
+            output.add($symbol.instance)
+            return output
+        of io_char:
+            if symbol.instance == 0: return "'" & $symbol.io_char & "'"
+            var output = "'" & $symbol.io_char & "'"
+            output.add("'")
+            output.add($symbol.instance)
+            return output
+        of io_string:
+            if symbol.instance == 0: return "\"" & $symbol.io_string & "\""
+            var output = "\"" & $symbol.io_string & "\""
+            output.add("'")
+            output.add($symbol.instance)
+            return output
 
-proc pretty(atom: Atom): string =
+func pretty(atom: Atom): string =
     case atom.kind:
         of 0:
             return pretty(atom.symbol)
@@ -717,7 +1192,7 @@ proc pretty(atom: Atom): string =
         else:
             assert(false, "malformed atom")
 
-proc pretty(application: Application): string =
+func pretty(application: Application): string =
     if application.is_atom:
         return pretty(application.value)
     var output = ""
@@ -726,14 +1201,14 @@ proc pretty(application: Application): string =
     output.add(pretty(application.atom))
     return output
 
-proc pretty(abstraction: Abstraction): string =
+func pretty(abstraction: Abstraction): string =
     var output = "\\"
     output.add(pretty(abstraction.input))
     output.add(" . ")
     output.add(pretty(abstraction.output))
     return output
 
-proc pretty(term: Term): string =
+func pretty(term: Term): string =
     if term.is_application: return pretty(term.application)
     return pretty(term.abstraction)
 
