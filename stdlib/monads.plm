@@ -1,0 +1,311 @@
+
+
+io-include-permissive "std/base"
+io-include-permissive "std/compounds"
+
+;monad, applicative, & functor definitions;
+
+;Functor Typeclass:
+(
+    (Fmap . Mapl) .
+    (Reserved . Reserved) .
+)
+Applicative Typeclass:
+(
+    (Fmap . Mapl) .
+    (
+        Reserved_parent .
+        (
+            (Reserved . Reserved) .
+            (
+                (Pure . Apply) .
+                (Seqr . Seql)
+            )
+        )
+    )
+)
+Monad Typeclass:
+(
+    (Fmap . Mapl) .
+    (
+        Reserved_parent .
+        (
+            (
+                (Bind . Reserved).
+                Reserved_parent
+            ) .
+            (
+                (Return . Apply) .
+                (Seqr . Seql)
+            )
+        )
+    )
+)
+;
+define Fmap         \type.Fst (Fst type)
+define Mapl         \type.Snd (Fst type)
+define Bind         \type.Fst (Fst (Fst (Snd (Snd type))))
+define Pure         \type.Fst (Fst (Snd (Snd (Snd type))))
+define Return       Pure
+define Apply        \type.Snd (Fst (Snd (Snd (Snd type))))
+define Seqr         \type.Fst (Snd (Snd (Snd (Snd type))))
+define Seql         \type.Snd (Snd (Snd (Snd (Snd type))))
+
+define Unit         False
+define Void         \type.Mapl type Unit
+define Lift         Fmap
+define Lift2        \type.\f.\x.\y.Apply type (LiftA type f x) y
+define Lift3        \type.\f.\x.\y.\z.Apply type (LiftA2 type f x y) z
+define Join         \type.\m.Bind type m (\x.x)
+define Sequence     \list-type.\monad-type.;
+;                       (\f.(\x.f (x x))(\x.f (x x)));
+;                           (\rec.\list.;
+;                               If-Then (IsNil list-type list);
+;                                   (Return monad-type (Nil list-type));
+;                                   (Lift2 monad-type;
+;                                       (Cons list-type);
+;                                       (Head list-type list);
+;                                       (rec (Tail list-type list));
+;                                   );
+;                           )
+define MapM         \list-type.\monad-type.\f.\xs.Sequence list-type monad-type (Map list-type f xs)
+define ForM         \list-type.\monad-type.\xs.\f.MapM list-type monad-type f xs
+define When         \monad-type.\cond.\f.If-Then cond f (Return monad-type Unit)
+define Unless       \monad-type.\cond.\f.When monad-type (Not cond) f
+define ReplicateM   \list-type.\monad-type.\num-type.\num.\action.Sequence list-type monad-type (Replicate list-type num-type num action)
+define FoldlM       \list-type.\monad-type.\f.\z.\xs.Foldl list-type (\e.\macc.Bind monad-type macc (\acc.f acc e)) (Return monad-type z) xs
+define FoldrM       \list-type.\monad-type.\f.\z.\xs.Foldr list-type (\e.\macc.Bind monad-type macc (\acc.f acc e)) (Return monad-type z) xs
+define FoldM       \list-type.\monad-type.\f.\z.\xs.Fold list-type (\e.\macc.Bind monad-type macc (\acc.f acc e)) (Return monad-type z) xs
+define Forever      \monad-type.\action.(\f.(\x.f (x x))(\x.f (x x))) (\r.Bind monad-type action (\x.r))
+
+define Maybe    (Make-Pair;
+;                   (Make-Pair;
+Fmap;                   (\f.\x.If-Then (Fst x) (Make-Pair True (f (Snd x))) x);
+Mapl;                   (\v.\x.If-Then (Fst x) (Make-Pair True v) x);
+;                   );
+;                   (Make-Pair;
+Reserved_parent;        (\x.x);
+;                       (Make-Pair;
+;                           (Make-Pair;
+;                               (Make-Pair;
+Bind;                               (\x.\f.If-Then (Fst x) (f (Snd x)) x);
+Reserved;                           (\x.x);
+;                               );
+Reserved_parent;                (\x.x);
+;                           );
+;                           (Make-Pair;
+;                               (Make-Pair;
+Return;                             (Make-Pair True);
+Apply;                              (\f.\x.If-Then (And (Fst x) (Fst f)) (Make-Pair True ((Snd f) (Snd x))) (Make-Pair False (Snd x)));
+;                               );
+;                               (Make-Pair;
+Seqr;                               (\x.\y.If-Then (And (Fst x) (Fst y)) y (Make-Pair False (Snd y)));
+Seql;                               (\x.\y.If-Then (And (Fst x) (Fst y)) x (Make-Pair False (Snd x)));
+;                               );
+;                           );
+;                       );
+;                   );
+;               )
+
+define Either   (Make-Pair;
+;                   (Make-Pair;
+Fmap;                   (\f.\x.If-Then (Fst x) (Make-Pair True (f (Snd x))) x);
+Mapl;                   (\a.\fb.If-Then (Fst fb) (Make-Pair True a) fb);
+;                   );
+;                   (Make-Pair;
+Reserved_parent;        (\x.x);
+;                       (Make-Pair;
+;                           (Make-Pair;
+;                               (Make-Pair;
+Bind;                               (\x.\f.If-Then (Fst x) (f (Snd x)) x);
+Reserved;                           (\x.x);
+;                               );
+Reserved_parent;                (\x.x);
+;                           );
+;                           (Make-Pair;
+;                               (Make-Pair;
+Return;                             (Make-Pair True);
+Apply;                              (\fa2b.\fa.If-Then (Not (Fst fa2b)) fa2b (If-Then (Fst fa) (Make-Pair True (Snd fa2b (Snd fa))) fa));
+;                               );
+;                               (Make-Pair;
+Seqr;                               (\x.\y.If-Then (Not (Fst x)) x y);
+Seql;                               (\x.\y.If-Then (Not (Fst x)) x (If-Then (Not (Fst y)) y x));
+;                               );
+;                           );
+;                       );
+;                   );
+;               )
+
+define IDMonad  (Make-Pair;
+;                   (Make-Pair;
+Fmap;                   (\a2b.\fa.\a2b fa);
+Mapl;                   (\a.\fb.a);
+;                   );
+;                   (Make-Pair;
+Reserved_parent;        (\x.x);
+;                       (Make-Pair;
+;                           (Make-Pair;
+;                               (Make-Pair;
+Bind;                               (\x.\f.f x);
+Reserved;                           (\x.x);
+;                               );
+Reserved_parent;                (\x.x);
+;                           );
+;                           (Make-Pair;
+;                               (Make-Pair;
+Return;                             (\x.x);
+Apply;                              (\fa2b.\fa.fa2b fa);
+;                               );
+;                               (Make-Pair;
+Seqr;                               (\x.\y.y);
+Seql;                               (\x.\y.x);
+;                               );
+;                           );
+;                       );
+;                   );
+;               )
+
+define List     (\type.(Make-Pair;      the List monad is polymorphic over list encoding types
+;                   (Make-Pair;
+Fmap;                   (\a2b.\fa.Map type a2b fa);
+Mapl;                   (\a.\fb.Map type (\x.a) fb);
+;                   );
+;                   (Make-Pair;
+Reserved_parent;        (\x.x);
+;                       (Make-Pair;
+;                           (Make-Pair;
+;                               (Make-Pair;
+Bind;                               (\x.\f.ConcatMap type x f);
+Reserved;                           (\x.x);
+;                               );
+Reserved_parent;                (\x.x);
+;                           );
+;                           (Make-Pair;
+;                               (Make-Pair;
+Return;                             (\x.Cons type x (Nil type));
+Apply;                              (\fa2b.\fa.ConcatMap type fa2b (ConcatMap type fa));
+;                               );
+;                               (Make-Pair;
+Seqr;                               (\xs.\ys.ConcatMap type xs (\x.ys));
+Seql;                               (\xs.\ys.xs);
+;                               );
+;                           );
+;                       );
+;                   );
+;               ))
+
+define Writer   (\type.(Make-Pair;      the Writer monad is polymorphic over list encoding types for the log
+;                   (Make-Pair;
+Fmap;                   (\a2b.\fa.Make-Pair (a2b (Fst fa)) (Snd fa));
+Mapl;                   (\a.\fb.Make-Pair a (Snd fb));
+;                   );
+;                   (Make-Pair;
+Reserved_parent;        (\x.x);
+;                       (Make-Pair;
+;                           (Make-Pair;
+;                               (Make-Pair;
+Bind;                               (\x.\f.Make-Pair (Fst (f (Fst x))) (Append type (Snd x) (Snd (f (Fst x)))));
+Reserved;                           (\x.x);
+;                               );
+Reserved_parent;                (\x.x);
+;                           );
+;                           (Make-Pair;
+;                               (Make-Pair;
+Return;                             (\x.Make-Pair x (Nil type));
+Apply;                              (\fa2b.\fa.Make-Pair (Fst fa2b (Fst fa)) (Append type (Snd fa2b) (Snd fa)));
+;                               );
+;                               (Make-Pair;
+Seqr;                               (\x.\y.Make-Pair (Fst y) (Append type (Snd x) (Snd y)));
+Seql;                               (\x.\y.Make-Pair (Fst x) (Append type (Snd x) (Snd y)));
+;                               );
+;                           );
+;                       );
+;                   );
+;               ))
+
+define Reader   (Make-Pair;
+;                   (Make-Pair;
+Fmap;                   (\f.\ra.\env.f (ra env));
+Mapl;                   (\v.\ra.\env.v);
+;                   );
+;                   (Make-Pair;
+Reserved_parent;        (\x.x);
+;                       (Make-Pair;
+;                           (Make-Pair;
+;                               (Make-Pair;
+Bind;                               (\x.\f.\env.f (x env) env);
+Reserved;                           (\x.x);
+;                               );
+Reserved_parent;                (\x.x);
+;                           );
+;                           (Make-Pair;
+;                               (Make-Pair;
+Return;                             (\x.\env.x);
+Apply;                              (\rf.\ra.\env.(rf env) (ra env));
+;                               );
+;                               (Make-Pair;
+Seqr;                               (\ra.\rb.\env.rb env);
+Seql;                               (\ra.\rb.\env.ra env);
+;                               );
+;                           );
+;                       );
+;                   );
+;               )
+
+define State    (Make-Pair;
+;                   (Make-Pair;
+Fmap;                   (\f.\mx.\state.Make-Pair (f (Fst (mx state))) (Snd (mx state)));
+Mapl;                   (\v.\mx.\state.Make-Pair v (Snd (mx state)));
+;                   );
+;                   (Make-Pair;
+Reserved_parent;        (\x.x);
+;                       (Make-Pair;
+;                           (Make-Pair;
+;                               (Make-Pair;
+Bind;                               (\x.\f.\state.f (Fst (x state)) (Snd (x state)));
+Reserved;                           (\x.x);
+;                               );
+Reserved_parent;                (\x.x);
+;                           );
+;                           (Make-Pair;
+;                               (Make-Pair;
+Return;                             (\x.\state.Make-Pair x state);
+Apply;                              (\mf.\mx.\state.Make-Pair ((Fst (mf state)) (Fst (mx (Snd (mf state))))) (Snd (mx (Snd (mf state)))));
+;                               );
+;                               (Make-Pair;
+Seqr;                               (\mx.\my.\state.my (Snd (mx state)));
+Seql;                               (\mx.\my.\state.Make-Pair (Fst (mx state)) (Snd (my (Snd (mx state)))));
+;                               );
+;                           );
+;                       );
+;                   );
+;               )
+
+define Cont     (Make-Pair;
+;                   (Make-Pair;
+Fmap;                   (\f.\mx.\k.mx (\v.k (f v)));
+Mapl;                   (\v.\mx.\k.mx (\x.k v));
+;                   );
+;                   (Make-Pair;
+Reserved_parent;        (\x.x);
+;                       (Make-Pair;
+;                           (Make-Pair;
+;                               (Make-Pair;
+Bind;                               (\x.\f.\continuation.x (\v.f v continuation));
+Reserved;                           (\x.x);
+;                               );
+Reserved_parent;                (\x.x);
+;                           );
+;                           (Make-Pair;
+;                               (Make-Pair;
+Return;                             (\x.\continuation.continuation x);
+Apply;                              (\mf.\mx.\k.mf (\f.mx (\x.k (f x))));
+;                               );
+;                               (Make-Pair;
+Seqr;                               (\mx.\my.\k.mx (\x.my k));
+Seql;                               (\mx.\my.\k.mx (\x.my (\x1.k x)));
+;                               );
+;                           );
+;                       );
+;                   );
+;               )

@@ -1,0 +1,20 @@
+
+
+;boolean and numerical implementations;
+
+define True     \x.\y.x
+define False    \x.\y.y
+define If-Then  \b.b
+define And      \x.\y.If-Then x y False
+define Or       \x.\y.If-Then x True y
+define Not      \x.x False True
+define Nand     \x.\y.Not (And x y)
+define Nor      \x.\y.Not (Or x y)
+define Xor      \x.\y.And (Or x y) (Nand x y)
+define Xnor     \x.\y.Or (And x y) (Nor x y)
+
+define Make-Pair \x.\y.\f.f x y
+define Fst \p.p True
+define Snd \p.p False
+
+

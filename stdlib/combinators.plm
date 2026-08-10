@@ -1,0 +1,26 @@
+
+
+;combinators;
+
+define I  \x.x
+define K  \x.\y.x
+define S  \x.\y.\z.x z (y z)
+define B  \x.\y.\z.x (y z)
+define C  \x.\y.y x
+define W  \x.\y.x y y
+define Y  \f.(\x.f (x x))(\x.f (x x))
+define Z  \f.(\x.f(\v.x x v))(\x.f(\v.x x v))
+define U  (\x.\y.y(x x y)) (\x.\y.y(x x y))
+define Ph \x.\y.\z.\w.x (y w) (z w)
+define M  \x.x x
+define V  \x.\y.\z.z x y
+define Th \x.\y.y x
+define KI \x.\y.y
+define B1 \x.\y.\z.\w.x (y z w)
+define J  \x.\y.\z.\w.x y (x w z)
+define D  \x.\y.\z.\w.x y (z w)
+define R  \x.\y.\z.z y x
+
+define Sp Ph
+
+

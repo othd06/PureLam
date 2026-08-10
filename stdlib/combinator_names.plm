@@ -1,0 +1,25 @@
+
+
+io-include-permissive "std/combinators"
+
+;descriptive combinator names;
+
+define Identity      I
+define Constant      K
+define Fuse          S
+define Compose       B
+define Flip          C
+define Join          W
+define Recurse       Y
+;Z is Y;
+;U is Y;
+define Fork          Ph
+define Duplicate     M
+define Apply2        V
+define Swap          Th
+define Constant2     KI
+define Compose3      B1
+define ContinueSwap  J
+define HalfFork      D
+define Swap3         R
+

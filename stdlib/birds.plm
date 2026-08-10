@@ -1,0 +1,26 @@
+
+
+io-include-permissive "std/combinators"
+
+; aliases for the combinators using the names from To Mock A Mockingbird;
+
+define Idiot        I
+define Kestrel      K
+define Starling     S
+define Bluebird     B
+define Cardinal     C
+define Warbler      W
+define Why          Y
+define Zeledonia    Z
+define Turing       U
+define Phoenix      Ph
+define Mockingbird  M
+define Vireo        V
+define Thrush       Th
+define Kite         KI
+define Blackbird    B1
+define Jay          J
+define Dove         D
+define Robin        R
+
+

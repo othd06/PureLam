@@ -1,66 +1,114 @@
-define true \ x . \ y . x
-define false \ x . \ y . y
-define if-then \ b . \ x . \ y . b x y
-define not \ b . if-then b false true
-define and \ a . \ b . if-then a b false
-define or \ a . \ b . if-then a true b
-define zero false
-define succ \ n . \ s . \ z . s (n s z)
-define make-pair \a.\b.\f. f a b
-define fst \p. p true
-define snd \p. p false
-define id \ x . x
-define add \ n . \ m . n succ m
-define pred \ n . fst (n (\ pair . make-pair (snd pair) (succ (snd pair))) (make-pair zero zero))
-define sub \ n . \ m . m pred n
-define mul \ n . \ m . n (add m) m
 
-define nil-church false ;\ f . \ emtpy . empty;
-define cons-church \ head . \ tail . \ f . \ empty . f head (tail f empty)
-define foldr-church \ f . \ init . \ list . list f init
-define foldl-church \ f . \ init . \ list . foldr (\ x . \ g . \ acc . g (f acc x)) (\x . x) list init
+io-include "std/maths"
+io-include "std/combinators"
+io-include "std/compounds"
 
-zero
 
-if-then true (succ zero) zero
+io-church-to-list `[2, 3, 4]
 
-succ (succ zero)
+io-church-to-list `[`2, `3, `4]
 
-succ (succ (succ (zero)))
+(Map Church-List (\x.io-church-to-int (Succ Church-Nat x)) `[`1, `2, `3])
 
-io-church-to-int (add (succ (succ (succ (zero)))) (succ (succ (zero))))
+;io-church-to-list (Map Church-List (\x.io-church-to-int (Succ Church-Nat x)) `[`1, `2, `3]);
 
-io-church-to-int zero
+;
+io-church-to-int `0
+io-church-to-int `1
+io-church-to-int `2
+io-church-to-int `3
+io-church-to-int `4
+io-church-to-int `5
+io-church-to-int `6
+io-church-to-int `7
+io-church-to-int `8
+io-church-to-int `9
+io-church-to-int `10
 
-io-church-to-int (succ zero)
+io-int-to-church 0
+io-int-to-church 1
+io-int-to-church 2
+io-int-to-church 3
+io-int-to-church 4
+io-int-to-church 5
+io-int-to-church 6
+io-int-to-church 7
+io-int-to-church 8
+io-int-to-church 9
+io-int-to-church 10
 
-io-church-to-int (succ (succ zero))
+io-church-to-pair (Make-Pair a b)
+io-pair-to-church <lhs, rhs>
 
-pred (add (succ (succ (succ (zero)))) (succ (succ (zero))))
+io-church-to-bool True
+io-church-to-bool False
+io-bool-to-church #f
+io-bool-to-church #t
 
-io-church-to-pair (make-pair (io-church-to-int zero) (io-church-to-int (succ zero)))
+io-church-to-list (Cons Church-List a (Cons Church-List b (Cons Church-List c (Nil Church-List))))
+io-list-to-church [c1, c2, c3, c4]
 
-not false
+io-scott-to-list (Cons Scott-List x (Cons Scott-List y (Cons Scott-List z (Nil Scott-List))))
+io-list-to-scott {s1, s2, s3, s4}
+io-scott-to-list (io-list-to-scott {this, is, a, test, list, cons, nil})
 
-and (not true) (false)
+io-church-to-char `65
+io-church-to-int (io-char-to-church 'a')
 
-or (false) (not false)
+io-scott-to-string `{`'H', `'e', `'l', `'l', `'o'}
+io-scott-to-string (io-string-to-scott "World")
+;
 
-(\x . \y . x) y
+;define div (Y (\d.\m.\n.If-Then (Lt Church-Nat m n) False (Succ Church-Nat (d (Sub Church-Nat m n) n))));
 
-(\x . \y . x y) z
+;;
+Cmp Church-Nat `0 `0    ; Equal;
+Cmp Church-Nat `0 `1    ; Less;
+Cmp Church-Nat `1 `0    ; Greater;
+Cmp Church-Nat `1 `1    ; Equal;
+Cmp Church-Nat `1 `2    ; Less;
+Cmp Church-Nat `2 `1    ; Greater;
+Cmp Church-Nat `2 `2    ; Equal;
+Cmp Church-Nat `2 `3    ; Less;
+Cmp Church-Nat `3 `2    ; Greater;
+Cmp Church-Nat `5 `5    ; Equal;
+Cmp Church-Nat `5 `6    ; Less;
+Cmp Church-Nat `6 `5    ; Greater;
+Cmp Church-Nat `10 `10  ; Equal;
+Cmp Church-Nat `10 `7   ; Greater;
+Cmp Church-Nat `7 `10   ; Less;
+Cmp Church-Nat `15 `3   ; Greater;
+Cmp Church-Nat `3 `15   ; Less;
+;;
 
-io-church-to-bool false
-
-io-church-to-bool true
-
-io-church-to-list (cons-church zero nil-church)
-
-"hello world"
-'c'
-<zero, false>
-#t
-[0, false, #f]
-{<5, true>, #t, 7, foo}
-
+;
+io-church-to-int (Mod Church-Nat `23 `5)
+io-church-to-int (Mod Church-Nat `17 `6)
+io-church-to-int (Mod Church-Nat `27 `4)
+io-church-to-int (Mod Church-Nat `15 `7)
+io-church-to-int (Mod Church-Nat `24 `6)
+io-church-to-int (Mod Church-Nat `17 `3)
+;
+;
+io-church-to-int (Half Church-Nat `0)
+io-church-to-int (Half Church-Nat `1)
+io-church-to-int (Half Church-Nat `2)
+io-church-to-int (Half Church-Nat `3)
+io-church-to-int (Half Church-Nat `4)
+io-church-to-int (Half Church-Nat `5)
+io-church-to-int (Half Church-Nat `6)
+io-church-to-int (Half Church-Nat `7)
+io-church-to-int (Half Church-Nat `8)
+io-church-to-int (Half Church-Nat `9)
+io-church-to-int (Half Church-Nat `10)
+io-church-to-int (Half Church-Nat `11)
+io-church-to-int (Half Church-Nat `12)
+io-church-to-int (Half Church-Nat `13)
+io-church-to-int (Half Church-Nat `14)
+io-church-to-int (Half Church-Nat `15)
+io-church-to-int (Half Church-Nat `16)
+io-church-to-int (Half Church-Nat `17)
+io-church-to-int (Half Church-Nat `18)
+io-church-to-int (Half Church-Nat `19)
+;
 

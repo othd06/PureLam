@@ -1,0 +1,125 @@
+
+
+io-include-permissive "std/base"
+
+;Numeric Mathematical functions;
+
+;Num TypeClass
+(
+    (
+        Zero .
+        (
+            Repeat .
+            Reserved
+        )
+    ) .
+    (
+        (
+            (
+                (Succ . Add)
+                (Pred . Sub)
+            ) .
+            (
+                (Div . IsZero) .
+                (Sign . MinMax)
+            )
+        )
+        (
+            (
+                (Eq . Cmp) .
+                (Mul . Pow)
+            ) .
+            (
+                (Mod . IsEven) .
+                (Half . Double) .
+            )
+        )
+    )
+)
+;
+
+define Zero     \type.Fst (Fst type)
+define Repeat   \type.Fst (Snd (Fst type))
+define Succ     \type.Fst (Fst (Fst (Fst (Snd type))))
+define Add      \type.Snd (Fst (Fst (Fst (Snd type))))
+define Pred     \type.Fst (Snd (Fst (Fst (Snd type))))
+define Sub      \type.Snd (Snd (Fst (Fst (Snd type))))
+define Div      \type.Fst (Fst (Snd (Fst (Snd type))))
+define IsZero   \type.Snd (Fst (Snd (Fst (Snd type))))
+define Sign     \type.Fst (Snd (Snd (Fst (Snd type))))
+define MinMax   \type.Snd (Snd (Snd (Fst (Snd type))))
+define Eq       \type.Fst (Fst (Fst (Snd (Snd type))))
+define Cmp      \type.Snd (Fst (Fst (Snd (Snd type))))
+define Mul      \type.Fst (Snd (Fst (Snd (Snd type))))
+define Pow      \type.Snd (Snd (Fst (Snd (Snd type))))
+define Mod      \type.Fst (Fst (Snd (Snd (Snd type))))
+define IsEven   \type.Snd (Fst (Snd (Snd (Snd type))))
+define Half     \type.Fst (Snd (Snd (Snd (Snd type))))
+define Double   \type.Snd (Snd (Snd (Snd (Snd type))))
+
+define Min      \type.\num.Fst (MinMax type num)
+define Max      \type.\num.Snd (MinMax type num)
+define Fact     \type.((\f.(\x.f (x x))(\x.f (x x))) (\r.\x.If-Then (IsZero type x) (Succ type (Zero type)) (Mul type x (r (Pred type x)))))
+define Lt       \type.\x.\y.(Cmp type x y) True False False
+define Le       \type.\x.\y.(Cmp type x y) True True False
+define Ne       \type.\x.\y.(Cmp type x y) True False True
+define Ge       \type.\x.\y.(Cmp type x y) False True True
+define Gt       \type.\x.\y.(Cmp type x y) False False True
+
+
+define Church-Nat   (Make-Pair;
+;                       (Make-Pair;
+Zero;                       False;
+;                           (Make-Pair;
+Repeat;                         (\s.\n.\z.n s z);
+Reserved;                       (\x.x);
+;                           );
+;                       );
+;                       (Make-Pair;
+;                           (Make-Pair;
+;                               (Make-Pair;
+;                                   (Make-Pair;
+Succ;                                   (\n.\s.\z.s (n s z));
+Add;                                    (\n.\m.n (\n.\s.\z.s (n s z)) m);
+;                                   );
+;                                   (Make-Pair;
+Pred;                                   (\n.Fst (n (\p.Make-Pair (Snd p) ((\n.\s.\z.s (n s z)) (Snd p))) (Make-Pair False False)));
+Sub;                                    (\m.\n.n (\n.Fst (n (\p.Make-Pair (Snd p) ((\n.\s.\z.s (n s z)) (Snd p))) (Make-Pair False False))) m);
+;                                   );
+;                               );
+;                               (Make-Pair;
+;                                   (Make-Pair;
+Div;                                    (\n.\m.(\n.Fst (n (\p.Make-Pair (Snd p) ((\n.\s.\z.s (n s z)) (Snd p))) (Make-Pair False False))) ((\f.(\x.f (x x))(\x.f (x x)))(\r.\p.If-Then ((\n.n (\x.False) True) (Fst p)) (Snd p) (r (Make-Pair ((\m.\n.n (\n.Fst (n (\p.Make-Pair (Snd p) ((\n.\s.\z.s (n s z)) (Snd p))) (Make-Pair False False))) m) (Fst p) m) ((\n.\s.\z.s (n s z)) (Snd p))))) (Make-Pair ((\n.\s.\z.s (n s z)) n) False)));
+IsZero;                                 (\n.n (\x.False) True);
+;                                   );
+;                                   (Make-Pair;
+Sign;                                   True;
+MinMax;                                 (\n.\m.If-Then ((\n.n (\x.False) True) ((\m.\n.n (\n.Fst (n (\p.Make-Pair (Snd p) ((\n.\s.\z.s (n s z)) (Snd p))) (Make-Pair False False))) m) n m)) (Make-Pair n m) (Make-Pair m n));
+;                                   );
+;                               );
+;                           );
+;                           (Make-Pair;
+;                               (Make-Pair;
+;                                   (Make-Pair;
+Eq;                                     (\n.\m.If-Then ((\n.n (\x.False) True) ((\m.\n.n (\n.Fst (n (\p.Make-Pair (Snd p) ((\n.\s.\z.s (n s z)) (Snd p))) (Make-Pair False False))) m) n m)) (If-Then ((\n.n (\x.False) True) ((\m.\n.n (\n.Fst (n (\p.Make-Pair (Snd p) ((\n.\s.\z.s (n s z)) (Snd p))) (Make-Pair False False))) m) m n)) True False) False);
+Cmp;                                    (\n.\m.If-Then ((\n.n (\x.False) True) ((\m.\n.n (\n.Fst (n (\p.Make-Pair (Snd p) ((\n.\s.\z.s (n s z)) (Snd p))) (Make-Pair False False))) m) n m)) (If-Then ((\n.n (\x.False) True) ((\m.\n.n (\n.Fst (n (\p.Make-Pair (Snd p) ((\n.\s.\z.s (n s z)) (Snd p))) (Make-Pair False False))) m) m n)) (\lt.\eq.\gt.eq) (\lt.\eq.\gt.lt)) (\lt.\eq.\gt.gt));
+;                                   );
+;                                   (Make-Pair;
+Mul;                                    (\n.\m.\s.\z.m (n s) z);
+Pow;                                    (\n.\m.m ((\n.\m.\s.\z.m (n s) z) n) (\x.x));
+;                                   );
+;                               );
+;                               (Make-Pair;
+;                                   (Make-Pair;
+Mod;                                    (\n.\m.(\modulo.If-Then ((\n.n (\x.False) True) ((\m.\n.n (\n.Fst (n (\p.Make-Pair (Snd p) ((\n.\s.\z.s (n s z)) (Snd p))) (Make-Pair False False))) m) m modulo)) False modulo) ((\f.(\x.f (x x))(\x.f (x x))) (\r.\p.If-Then ((\n.n (\x.False) True) (Snd p)) (Fst p) (r (Make-Pair (Snd p) ((\m.\n.n (\n.Fst (n (\p.Make-Pair (Snd p) ((\n.\s.\z.s (n s z)) (Snd p))) (Make-Pair False False))) m) (Snd p) m)))) (Make-Pair n n))); This can be improved by making it cyclic in the range of m
+IsEven;                                 (\n.n Not True);
+;                                   );
+;                                   (Make-Pair;
+Half;                                   (\n.Fst (n (\p.If-Then (Snd p) (Make-Pair ((\n.\s.\z.s (n s z)) (Fst p)) False) (Make-Pair (Fst p) True)) (Make-Pair False False)));
+Double;                                 (\n.\s.\z.n (\x.s (s x)) z);
+;                                   );
+;                               );
+;                           );
+;                       );
+;                   )
+

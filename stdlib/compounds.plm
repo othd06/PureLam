@@ -1,0 +1,95 @@
+
+
+io-include-permissive "std/base"
+io-include-permissive "std/maths"
+
+;compound data type functions;
+
+;List typeclass:
+(
+    (Nil . Cons) . 
+    (
+        (
+            (Foldl . Foldr) .
+            (Fold . IsNil) .
+        )
+        (
+            (Head . Tail) .
+            Reserved
+        )
+    )
+);
+define Nil          \type.Fst (Fst type)
+define Cons         \type.Snd (Fst type)
+define Foldl        \type.Fst (Fst (Fst (Snd type)))
+define Foldr        \type.Snd (Fst (Fst (Snd type)))
+define Fold         \type.Fst (Snd (Fst (Snd type)))
+define IsNil        \type.Snd (Snd (Fst (Snd type)))
+define Head         \type.Fst (Fst (Snd (Snd type)))
+define Tail         \type.Snd (Fst (Snd (Snd type)))
+
+define Filter       \type.\f.Foldl type (\e.\a.If-Then (f e) (Cons type e a) a) (Nil type)
+define Map          (\type.\f.Foldr type (\e.\a.Cons type (f e) a) (Nil type))
+define Append       \type.\xs.\ys.Foldl type (Cons type) xs ys
+define Reverse      \type.Foldr type (Cons type) (Nil type)
+define Len          \type-list.\type-num.Fold type-list (Succ type-num) (Zero type-num)
+define Drop         \type-list.\type-num.\n.\list.Repeat type-num n (Tail type-list) list
+define Take         \type-list.\type-num.\n.\list.Reverse type-list (Fst ((Repeat type-num n) (\p.Make-Pair (Cons type-list (Head type-list (Snd p)) (Fst p)) (Tail type-list (Snd p))) (Make-Pair (Nil type-list) list)))
+define Zip          \type.\xs.\ys.Fst (Foldl type (\e.\a.Make-Pair (Cons type (Make-Pair e (Head type (Snd a))) (Fst a)) (Tail type (Snd a))) (Make-Pair (Nil type) ys) xs)
+define ZipWith      \type.\f.\xs.\ys.Fst (Foldl type (\e.\a.Make-Pair (Cons type (f e (Head type (Snd a))) (Fst a)) (Tail type (Snd a))) (Make-Pair (Nil type) ys) xs)
+define Concat       \type.\xss.Foldl type (Append type) (Nil type) xss
+define ConcatMap    \type.\xs.\f.Concat type (Map type f xs)
+define Partition    \type.\f.\xs.Make-Pair (Filter type f xs) (Filter type (\x.Not (f x)) xs)
+define Replicate    \type-list.\type-num.\num.\value.Repeat type-num num (Cons type-list value) (Nil list)
+
+define Church-List  (Make-Pair;
+;                       (Make-Pair;
+Nil;                        False;
+Cons;                       (\head.\tail.\f.\empty.f head (tail f empty));
+;                       );
+;                       (Make-Pair;
+;                           (Make-Pair;
+;                               (Make-Pair;
+Foldl;                              (\f.\init.\list.(\f.\init.\list.list f init) (\x.\g.\acc.g (f acc x)) (\x.x) list init);
+Foldr;                              (\f.\init.\list.list f init);
+;                               );
+;                               (Make-Pair;
+Fold;                               (\f.\init.\list.list f init);
+IsNil;                              (\list. list (\h.\acc. False) True);
+;                               );
+;                           );
+;                           (Make-Pair;
+;                               (Make-Pair;
+Head;                               ((\f.\init.\list.list f init) (\h.\x.h) False);
+Tail;                               (\list.Fst ((\f.\init.\list.list f init) (\e.\a.Make-Pair (Snd a) ((\head.\tail.\f.\empty.f head (tail f empty)) e (Snd a))) (Make-Pair False False) list));
+;                               );
+Reserved;                       (\x.x);
+;                           );
+;                       );
+;                   )
+
+define Scott-List   (Make-Pair;
+;                       (Make-Pair;
+Nil;                        False;
+Cons;                       (\head.\tail.\f.\empty.f head tail);
+;                       );
+;                       (Make-Pair;
+;                           (Make-Pair;
+;                               (Make-Pair;
+Foldl;                              (\f.(\x.f (x x))(\x.f (x x)))(\r.\f.\init.\list.If-Then ((\list.list (\head.\tail.False) True) list) init (r f (f init ((\list.list True x) list)) ((\list.list False x) list)));
+Foldr;                              (\f.(\x.f (x x))(\x.f (x x)))(\r.\f.\init.\list.If-Then ((\list.list (\head.\tail.False) True) list) init (f ((\list.list True x) list) (r f init ((\list.list False x) list))));
+;                               );
+;                               (Make-Pair;
+Fold;                               (\f.(\x.f (x x))(\x.f (x x)))(\r.\f.\init.\list.If-Then ((\list.list (\head.\tail.False) True) list) init (r f (f init ((\list.list True x) list)) ((\list.list False x) list)));
+IsNil;                              (\list.list (\head.\tail.False) True);
+;                               );
+;                           );
+;                           (Make-Pair;
+;                               (Make-Pair;
+Head;                               (\list.list True x);
+Tail;                               (\list.list False x);
+;                               );
+Reserved;                       (\x.x);
+;                           );
+;                       );
+;                   )
