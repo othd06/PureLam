@@ -53,16 +53,16 @@ define Seql         \type.Snd (Snd (Snd (Snd (Snd type))))
 
 define Unit         False
 define Void         \type.Mapl type Unit
-define Lift         Fmap
-define Lift2        \type.\f.\x.\y.Apply type (LiftA type f x) y
-define Lift3        \type.\f.\x.\y.\z.Apply type (LiftA2 type f x y) z
+define LiftA        Fmap
+define LiftA2       \type.\f.\x.\y.Apply type (LiftA type f x) y
+define LiftA3       \type.\f.\x.\y.\z.Apply type (LiftA2 type f x y) z
 define Join         \type.\m.Bind type m (\x.x)
 define Sequence     \list-type.\monad-type.;
 ;                       (\f.(\x.f (x x))(\x.f (x x)));
 ;                           (\rec.\list.;
 ;                               If-Then (IsNil list-type list);
 ;                                   (Return monad-type (Nil list-type));
-;                                   (Lift2 monad-type;
+;                                   (LiftA2 monad-type;
 ;                                       (Cons list-type);
 ;                                       (Head list-type list);
 ;                                       (rec (Tail list-type list));
@@ -75,7 +75,7 @@ define Unless       \monad-type.\cond.\f.When monad-type (Not cond) f
 define ReplicateM   \list-type.\monad-type.\num-type.\num.\action.Sequence list-type monad-type (Replicate list-type num-type num action)
 define FoldlM       \list-type.\monad-type.\f.\z.\xs.Foldl list-type (\e.\macc.Bind monad-type macc (\acc.f acc e)) (Return monad-type z) xs
 define FoldrM       \list-type.\monad-type.\f.\z.\xs.Foldr list-type (\e.\macc.Bind monad-type macc (\acc.f acc e)) (Return monad-type z) xs
-define FoldM       \list-type.\monad-type.\f.\z.\xs.Fold list-type (\e.\macc.Bind monad-type macc (\acc.f acc e)) (Return monad-type z) xs
+define FoldM        \list-type.\monad-type.\f.\z.\xs.Fold list-type (\e.\macc.Bind monad-type macc (\acc.f acc e)) (Return monad-type z) xs
 define Forever      \monad-type.\action.(\f.(\x.f (x x))(\x.f (x x))) (\r.Bind monad-type action (\x.r))
 
 define Maybe    (Make-Pair;

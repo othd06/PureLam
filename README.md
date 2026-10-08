@@ -132,7 +132,9 @@ For functions with multiple inputs, the convention within the lambda calculus is
 ```
 \<variable to bind as first arg>.\<variable to bind as snd arg>.<term in which to bind the variables>
 ```
-Note: In future versions it will be possible to use λ in place of \ however these will mean the same thing.
+Note 1: In future versions it will be possible to use λ in place of \ however these will mean the same thing.
+
+Note 2: In order to support this currying, applications will always be left-associative.
 
 Abstractions can be used in applications which look as follows:
 ```
