@@ -188,7 +188,7 @@ Each term you write will be printed, in order, when the program evaluates (assum
 
 You can define a shorthand with either of the keywords: `define` or `define-unsafe`.
 
-Currently these operate identically however it is planned in future versions that they will diverge so while it is advised to use `define` generally, only `define-unsafe` is guaranteed to behave identically in future versions so please see the note at the end of this sub-subsection to determine which you should use specifically.
+Currently these operate identically however it is planned in future versions that they will diverge so while it is advised to use `define` generally, only `define-unsafe` is guaranteed to behave identically in future versions so please see the note at the end of this sub-subsection to determine which you should use specifically. This is because `define` has capture-free semantics and a known bug where it just... isn't at all capture-free.
 
 In general, definitions work like macros in that they are preprocessor directives.
 
@@ -196,7 +196,7 @@ To define a shorthand you use one of the two keywords immediately followed by th
 
 Doing so will result in every instance of the name of the shorthand in later lines of the program (earlier lines will not be affected, including within the shorthand body itself since shorthands cannot be defined recursively) to be replaced with the body of the function allowing for features such as named functions and values.
 
-In future the keyword `define` will define shorthands that are safe in the sense that they are capture free meaning that no free (unbound) variable in the shorthand body will be allowed to become captured when copying the body into wherever it is used. Since this is not currently implemented for shorthands (although obviously capture-free substitution is implemented for function applications don't worry), it is recommended to be wary of such situations however if you, in fact, rely on capture of free variables within your shorthand then it is advised to use `define-unsafe` for forward-compatibility.
+In future the keyword `define` will define shorthands that are safe in the sense that they are capture free meaning that no free (unbound) variable in the shorthand body will be allowed to become captured when copying the body into wherever it is used. Since this is not currently implemented for shorthands (although obviously capture-free substitution is implemented for function applications don't worry), it is recommended to be wary of such situations however if you, in fact, rely on capture of free variables within your shorthand then it is advised to use `define-unsafe` for forward-compatibility. The fact that the intended `define` behaviour is not implemented is treated as a known bug for the purposes of semantic versioning.
 
 ### Module Imports:
 
