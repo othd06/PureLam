@@ -1,26 +1,47 @@
 
+(*Note: this grammar is not 100% accurate (nor can it be in a single unified parser/lexer context-free grammar) but should serve as an alright basic reference for writing a lexer and parser in combination with a broader understanding of the language itself*)
 
-<program>     ::= '\n'* (<statement> '\n'+)* <statement>? ;
+<program>       ::= <newline-character>* (<statement> <newline-character>*)* ;
 
-<statement>   ::= <definition> | <term> ;
+<statement>     ::= <comment> | (<include> | <definition> | <term>) (<newline-character> | <EOF>) ;
 
-<definition>  ::= "define" <symbol> <term> ;
+<comment>       ::= ";" <UTF8-character>* ";"
+                  | ";" <comment> ";" ;
 
-<term>        ::= <abstraction> | <application> ;
+<include>       ::= ("io-include" | "io-include-permissive") """ <UTF8-character>* """ ;
 
-<abstraction> ::= "\" <symbol> "." <term> ;
+<definition>    ::= ("define" | "define-unsafe") <pure symbol> <term> ;
 
-<application> ::= <atom> <atom>* ;
-                # <application> <atom> | <atom>
+<term>          ::= <abstraction> | <application> ;
 
-<atom>        ::= <symbol> | "(" <term> ")" | <abstraction> ;
+<abstraction>   ::= "\" <pure symbol> "." <term> ;
 
-<symbol>      ::= <letter> (<letter> | <digit> | "-" )*
-                | <digit>+
-                | "#t" | "#f"
-                | "<" <term> "," <term> ">"
-                | "[" [<term> ("," <term>)*] "]"
-                | "{" [<term> ("," <term>)*] "}"
-                | "'" letter "'"
-                | """ <character>* """;
+<application>   ::= <atom>+ ;
+
+<atom>          ::= <pure symbol> | "(" <term> ")" | <abstraction> | <impure symbol> ;
+
+<pure symbol>   ::= <letter> (<letter> | <digit> | "-" )* ;
+
+<impure symbol> ::= ["`"] <digit>+
+                  | ["`"] ("#t" | "#f")
+                  | ["`"] "<" <term> "," <term> ">"
+                  | ["`"] "[" [<term> ("," <term>)*] "]"
+                  | ["`"] "{" [<term> ("," <term>)*] "}"
+                  | ["`"] "'" <ASCII-character> "'"
+                  | ["`"] """ <UTF8-character>* """ 
+                  | "io-church-to-int"
+                  | "io-int-to-church"
+                  | "io-church-to-pair"
+                  | "io-pair-to-church"
+                  | "io-church-to-bool"
+                  | "io-bool-to-church"
+                  | "io-church-to-list"
+                  | "io-list-to-church"
+                  | "io-scott-to-list"
+                  | "io-list-to-scott"
+                  | "io-church-to-char"
+                  | "io-char-to-church"
+                  | "io-scott-to-string"
+                  | "io-string-to-scott" 
+                  | "io-input" """ <UTF8-character>* """;
 
