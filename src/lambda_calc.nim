@@ -631,7 +631,8 @@ func io_string_to_scott(value: Atom, final_parent: Term): Term =
     for i in str:
         list.add(i)
     func char_to_char_term(input: char): Term =
-        return Term(is_application: true, application: Application(is_atom: true, value: Atom(kind: 0, symbol: Symbol(kind: io_char, io_char: input))))
+        #return Term(is_application: true, application: Application(is_atom: true, value: Atom(kind: 0, symbol: Symbol(kind: io_char, io_char: input))))
+        return Term(is_application: true, application: Application(is_atom: false, application: Application(is_atom: true, value: Atom(kind: 0, symbol: Symbol(kind: iofunc, iofunc: 11))), atom: Atom(kind: 0, symbol: Symbol(kind: io_char, io_char: input))))
     return io_list_to_scott(Atom(kind: 0, symbol: Symbol(kind: io_scott_list, io_scott_list: list.map(char_to_char_term))), final_parent)
 
 const
@@ -1578,7 +1579,7 @@ func pretty(term: Term): string =
 
 
 proc repl() =
-    echo "PureLam REPL interface:"
+    echo "PureLam REPL Interface:"
     var
         program = ""
         tokens: seq[Token] = @[]
